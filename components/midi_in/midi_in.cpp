@@ -26,59 +26,62 @@ void MidiInComponent::dump_config() {
   this->check_uart_settings(31250);
 }
 
-void MidiInComponent::setup() { this->midi_->begin(); }
+void MidiInComponent::setup() {
+  this->midi_->begin(this->channel_);
+}
 
 void MidiInComponent::loop() {
   while (available()) {
-    bool ok = (this->channel_ == 0 ? this->midi_->read() : this->midi_->read(this->channel_));
-    if (ok) {
-      this->last_activity_time_ = millis();
+    if (!this->midi_->read()) {
+      continue;
+    }
 
-      midi::MidiType message_type = this->midi_->getType();
+    this->last_activity_time_ = millis();
 
-      this->log_message_(message_type);
+    midi::MidiType message_type = this->midi_->getType();
 
-      if (this->midi_->isChannelMessage(message_type)) {
-        auto msg = MidiChannelMessage{.type = message_type,
-                                      .channel = static_cast<uint8_t>(this->midi_->getChannel()),
-                                      .data1 = static_cast<uint8_t>(this->midi_->getData1()),
-                                      .data2 = static_cast<uint8_t>(this->midi_->getData2())};
+    this->log_message_(message_type);
 
-        switch (message_type) {
-          case midi::MidiType::NoteOff:
+    if (this->midi_->isChannelMessage(message_type)) {
+      auto msg = MidiChannelMessage{.type = message_type,
+                                    .channel = static_cast<uint8_t>(this->midi_->getChannel()),
+                                    .data1 = static_cast<uint8_t>(this->midi_->getData1()),
+                                    .data2 = static_cast<uint8_t>(this->midi_->getData2())};
+
+      switch (message_type) {
+        case midi::MidiType::NoteOff:
+          if (this->note_velocities_[msg.data1] > 0) {
+            this->note_velocities_[msg.data1] = 0;
+            this->keys_on_--;
+          }
+          break;
+        case midi::MidiType::NoteOn:
+          if (msg.data2 > 0) {
+            if (this->note_velocities_[msg.data1] == 0) {
+              this->keys_on_++;
+            }
+            this->note_velocities_[msg.data1] = msg.data2;
+          } else {
+            // this is actualy NOTE OFF
             if (this->note_velocities_[msg.data1] > 0) {
               this->note_velocities_[msg.data1] = 0;
               this->keys_on_--;
             }
-            break;
-          case midi::MidiType::NoteOn:
-            if (msg.data2 > 0) {
-              if (this->note_velocities_[msg.data1] == 0) {
-                this->keys_on_++;
-              }
-              this->note_velocities_[msg.data1] = msg.data2;
-            } else {
-              // this is actualy NOTE OFF
-              if (this->note_velocities_[msg.data1] > 0) {
-                this->note_velocities_[msg.data1] = 0;
-                this->keys_on_--;
-              }
-            }
-            break;
-          case midi::MidiType::ProgramChange:
-            this->program_ = msg.data1;
-            break;
-          case midi::MidiType::ControlChange:
-            this->process_controller_message_(msg);
-            break;
-          default:
-            break;
-        }
-
-        this->channel_message_callback_.call(msg);
-      } else {
-        this->system_message_callback_.call(MidiSystemMessage{.type = message_type});
+          }
+          break;
+        case midi::MidiType::ProgramChange:
+          this->program_ = msg.data1;
+          break;
+        case midi::MidiType::ControlChange:
+          this->process_controller_message_(msg);
+          break;
+        default:
+          break;
       }
+
+      this->channel_message_callback_.call(msg);
+    } else {
+      this->system_message_callback_.call(MidiSystemMessage{.type = message_type});
     }
   }
 
