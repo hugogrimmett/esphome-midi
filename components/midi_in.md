@@ -33,8 +33,7 @@ midi_in:
 
 ## Configuration variables:
 
-  - **channel** (*Optional*, int): MIDI channel to listen to events on
-    (1-16). Defaults in <span class="title-ref">1</span>.
+  - **channel** (*Optional*, int or string): MIDI channel to listen on (1-16), or `0`/`all` for all channels. Defaults to <span class="title-ref">1</span>.
   - **uart\_id** (*Optional*, `config-id`): The ID of the `UART bus
     <uart>` you wish to use for this sensor. Use this if you want to use
     multiple UART buses at once.

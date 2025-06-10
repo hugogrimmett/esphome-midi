@@ -110,11 +110,18 @@ CONF_PLAYBACK = "playback"
 CONF_NOTE = "note"
 CONF_CONTROL = "control"
 
+def validate_channel(value):
+    if isinstance(value, str):
+        if value.lower() == "all":
+            return 0
+        raise cv.Invalid("Channel must be 0-16 or 'all'")
+    return cv.int_range(0, 16)(value)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MidiInComponent),
-            cv.Optional(CONF_CHANNEL, default=1): cv.int_range(1, 16),
+            cv.Optional(CONF_CHANNEL, default=1): validate_channel,
             cv.Optional(CONF_ON_CHANNEL_MESSAGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
